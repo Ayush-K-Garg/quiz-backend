@@ -4,6 +4,9 @@ exports.searchUsers = async (req, res) => {
   const { query } = req.query;
   const currentUid = req.user.uid;
 
+  console.log('🔍 Received search query:', query);
+
+
   if (!query) {
     return res.status(400).json({ message: 'Search query is required' });
   }

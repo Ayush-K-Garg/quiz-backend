@@ -31,6 +31,13 @@ const authenticateFirebaseUser = async (req, res, next) => {
       { upsert: true, new: true }
     );
 
+     // ✅ Log all users currently in the database
+     const allUsers = await User.find();
+     console.log('📄 All registered users in DB:');
+     allUsers.forEach((u, i) => {
+       console.log(`${i + 1}. ${u.name} (${u.email})`);
+     });
+
     next(); // Proceed to next middleware or route handler
   } catch (error) {
     console.error('❌ Token verification error:', error.message);
