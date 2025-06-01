@@ -4,6 +4,8 @@ const app = express();
 // other middleware and route imports
 const friendRoutes = require('./routes/friendRoutes');
 const userRoutes = require('./routes/userRoutes');
+const quizRoutes = require('./routes/quizRoutes');
+app.use('/api/quiz', quizRoutes);
 
 app.use(express.json());
 
