@@ -1,19 +1,28 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
 
-// other middleware and route imports
-const friendRoutes = require('./routes/friendRoutes');
-const userRoutes = require('./routes/userRoutes');
-const quizRoutes = require('./routes/quizRoutes');
-app.use('/api/quiz', quizRoutes);
-
+// Middleware
+app.use(cors());
 app.use(express.json());
 
-// Use friend routes under /api/friends
-app.use('/api/friends', friendRoutes);
+// Route imports
+const userRoutes = require('./routes/userRoutes');
+const friendRoutes = require('./routes/friendRoutes');
+const quizRoutes = require('./routes/quizRoutes');
+const matchRoomRoutes = require('./routes/matchRoutes'); // New for multiplayer
+const leaderboardRoutes = require('./routes/leaderboardRoutes'); // Optional
 
-// Use user routes under /api/users
+// Route usage
 app.use('/api/users', userRoutes);
+app.use('/api/friends', friendRoutes);
+app.use('/api/quiz', quizRoutes);
+app.use('/api/match', matchRoomRoutes);         // New route for multiplayer logic
+app.use('/api/leaderboard', leaderboardRoutes); // Optional, for real-time or final result leaderboard
 
-// export app to be used in server.js
+// Health check
+app.get('/', (req, res) => {
+  res.send('🧠 Quiz API is up and running!');
+});
+
 module.exports = app;
