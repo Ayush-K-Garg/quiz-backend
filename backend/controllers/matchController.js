@@ -60,7 +60,7 @@ exports.createMatchRoom = async (req, res) => {
 exports.joinMatchRoom = async (req, res) => {
   try {
     const { roomId } = req.body;
-    const uid = req.user?.uid;
+    const uid = req.user?.uid?.trim();
 
     console.log('🔎 [Join Attempt] RoomID:', roomId, '| UID:', uid);
 
@@ -94,7 +94,7 @@ exports.joinMatchRoom = async (req, res) => {
       return res.status(403).json({ message: 'Room is full' });
     }
 
-    // Step 4: Try to get user info from DB (optional, fallback to req.user)
+    // Step 4: Get user info
     let user;
     try {
       user = await User.findOne({ uid });
@@ -105,14 +105,10 @@ exports.joinMatchRoom = async (req, res) => {
       console.error(`❌ [User Fetch Error] UID ${uid}:`, e);
     }
 
-    const username = user?.name || req.user?.name || 'Unknown';
-    const photoUrl = user?.picture || req.user?.picture || '';
+    const username = (user?.name || req.user?.name || 'Unknown').trim();
+    const photoUrl = (user?.picture || req.user?.picture || '').trim();
 
-    if (!username || !photoUrl) {
-      console.warn(`⚠️ [Incomplete Profile] UID: ${uid} | Username: ${username} | Photo: ${photoUrl}`);
-    }
-
-    // Step 5: Push new player
+    // Step 5: Add new player
     const newPlayer = {
       uid,
       username,
@@ -124,6 +120,7 @@ exports.joinMatchRoom = async (req, res) => {
     console.log('➕ [Adding Player]', newPlayer);
 
     room.players.push(newPlayer);
+
     await room.save();
 
     console.log('✅ [Join Success] UID:', uid, '| Total Players:', room.players.length);
@@ -134,6 +131,7 @@ exports.joinMatchRoom = async (req, res) => {
     res.status(500).json({ message: 'Server error joining room' });
   }
 };
+
 
 exports.findOrCreateRandomMatch = async (req, res) => {
   try {
@@ -279,55 +277,74 @@ exports.submitAnswer = async (req, res) => {
 
 
 
+
+
 exports.getLeaderboard = async (req, res) => {
   try {
     const { roomId } = req.params;
-    const trimmedRoomId = roomId.trim();
+    const trimmedRoomId = roomId?.trim();
 
     console.log('📊 [Leaderboard] Request received for Room ID:', trimmedRoomId);
 
-    // Step 1: Find match room
-    const room = isValidObjectId(trimmedRoomId)
-      ? await MatchRoom.findById(trimmedRoomId)
-      : await MatchRoom.findOne({ customRoomId: trimmedRoomId });
+    if (!trimmedRoomId) {
+      console.warn('⚠️ [Leaderboard] No roomId provided in request');
+      return res.status(400).json({ message: 'Missing roomId in request' });
+    }
+
+    // Step 1: Fetch MatchRoom
+    let room = null;
+    if (isValidObjectId(trimmedRoomId)) {
+      room = await MatchRoom.findById(trimmedRoomId);
+    } else {
+      room = await MatchRoom.findOne({ customRoomId: trimmedRoomId });
+    }
 
     if (!room) {
       console.warn('❌ [Leaderboard] Room not found for ID:', trimmedRoomId);
       return res.status(404).json({ message: 'Room not found' });
     }
 
-    console.log(`👥 [Leaderboard] Found Room: ${room._id} | Players: ${room.players.length}`);
+    console.log(`👥 [Leaderboard] Room ID: ${room._id} | Total Players: ${room.players.length}`);
 
-    // Step 2: Build leaderboard
-    const leaderboard = await Promise.all(
-      room.players.map(async (player, index) => {
-        const uid = player.uid;
-        console.log(`🔍 [Leaderboard] Processing player #${index + 1} | UID: ${uid}`);
+    // Step 2: Process each player and construct leaderboard
+    const leaderboard = [];
 
-        let user = null;
-        try {
-          user = await User.findOne({ uid });
-          if (!user) {
-            console.warn(`⚠️ [Leaderboard] No user found in DB for UID: ${uid}`);
-          }
-        } catch (err) {
-          console.error(`❌ [Leaderboard] DB error while finding user ${uid}:`, err.message);
+    for (let i = 0; i < room.players.length; i++) {
+      const player = room.players[i];
+    
+      if (!player || typeof player.uid !== 'string' || !player.uid.trim()) {
+        console.warn(`⚠️ [Leaderboard] Skipping player #${i + 1} due to missing or invalid UID:`, player);
+        continue;
+      }
+    
+      const uid = player.uid.trim();
+      console.log(`🔍 [Leaderboard] Processing player #${i + 1} | UID: ${uid}`);
+    
+      let user = null;
+      try {
+        user = await User.findOne({ uid });
+        if (!user) {
+          console.warn(`⚠️ [Leaderboard] No user found in DB for UID: ${uid}`);
+        } else {
+          console.log(`🧠 [Leaderboard] Found User: ${user.name}`);
         }
+      } catch (dbErr) {
+        console.error(`❌ [Leaderboard] DB Error while fetching user ${uid}:`, dbErr.message);
+      }
+    
+      const name = user?.name || player.username || 'Unknown';
+      const picture = user?.picture || player.photoUrl || '';
+      const score = typeof player.score === 'number' ? player.score : 0;
+    
+      leaderboard.push({ uid, name, picture, score });
+    
+      console.log(`📌 [Player #${i + 1}] Name: ${name} | Score: ${score}`);
+    }
+    
 
-        const name = user?.name || player.username || 'Unknown';
-        const picture = user?.picture || player.photoUrl || '';
-        const score = player.score ?? 0;
-
-        console.log(`📌 Player: ${name} | Score: ${score}`);
-
-        return { uid, name, picture, score };
-      })
-    );
-
-    // Step 3: Sort leaderboard
+    // Step 3: Sort the leaderboard
     leaderboard.sort((a, b) => b.score - a.score);
 
-    console.log('✅ [Leaderboard] Final Leaderboard:', leaderboard);
     console.log('✅ [Leaderboard] Final Leaderboard:', JSON.stringify(leaderboard, null, 2));
 
     return res.status(200).json({ leaderboard });
@@ -418,40 +435,60 @@ exports.submitAnswersBulk = async (req, res) => {
       index: parseInt(index),
       answer: answer,
     }));
-
     console.log('🧾 Formatted Answers:', formattedAnswers);
 
-    // Step 4: Fallback for username/photo
+    // Step 4: Fetch fallback user data
     let { username, photoUrl } = room.players[playerIndex] ?? {};
-
-if (!username || !photoUrl) {
-  const user = await User.findOne({ uid });
-  if (user) {
-    username = user.name || username;
-    photoUrl = user.picture || photoUrl;
-    console.log('🔄 [User DB Fallback] Name:', username, '| Picture:', photoUrl);
-  } else {
-    console.warn('⚠️ [No DB User Found] Using default name/pic');
-  }
-}
-
-    // Step 5: Update player data using positional operator
-    const updateResult = await MatchRoom.updateOne(
-      { _id: roomId, 'players.uid': uid },
-      {
-        $set: {
-          'players.$.score': score,
-          'players.$.answers': formattedAnswers,
-          'players.$.username': username || 'Unknown',
-          'players.$.photoUrl': photoUrl || '',
-        }
+    if (!username || !photoUrl) {
+      const user = await User.findOne({ uid });
+      if (user) {
+        username = user.name || username;
+        photoUrl = user.picture || photoUrl;
+        console.log('🔄 [User DB Fallback] Name:', username, '| Picture:', photoUrl);
+      } else {
+        console.warn('⚠️ [No DB User Found] Using default name/pic');
       }
-    );
-
-    if (updateResult.modifiedCount === 0) {
-      console.warn('⚠️ [Update Failed] Could not update player record');
-      return res.status(500).json({ message: 'Failed to update answers' });
     }
+
+    // Step 5: Update player object directly and save safely
+    const updatePlayerData = () => {
+      room.players[playerIndex] = {
+        ...room.players[playerIndex],
+        uid,
+        username: username || 'Unknown',
+        photoUrl: photoUrl || '',
+        score,
+        answers: formattedAnswers,
+      };
+      room.markModified('players');
+    };
+
+    updatePlayerData();
+
+    try {
+      await room.save();
+    } catch (err) {
+      if (err.name === 'VersionError') {
+        console.warn('⚠️ [VersionError] Retrying with fresh room...');
+        const freshRoom = await MatchRoom.findById(roomId);
+        const freshIndex = freshRoom.players.findIndex(p => p.uid === uid);
+        if (freshIndex !== -1) {
+          room.players = freshRoom.players;
+          updatePlayerData();
+          await room.save();
+        } else {
+          console.error('❌ [Retry Failed] Player not found after version error');
+          return res.status(500).json({ message: 'Failed to retry update after version conflict' });
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    // Step 6: Debug final saved player
+    const updatedRoom = await MatchRoom.findById(roomId);
+    const updatedPlayer = updatedRoom.players.find(p => p.uid === uid);
+    console.log('🧠 [Debug] Updated Player:', updatedPlayer);
 
     console.log(`✅ [submitAnswersBulk] Saved ${formattedAnswers.length} answers for UID: ${uid}, Score: ${score}`);
     return res.status(200).json({ message: 'Answers submitted successfully', score });
