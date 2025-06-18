@@ -6,6 +6,8 @@ const { setupSocket } = require('./socket');
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/quiz_app';
 
+
+
 mongoose.set('bufferCommands', false);
 mongoose.set('strictQuery', true);
 
@@ -17,7 +19,8 @@ mongoose.connect(MONGO_URI, {
   console.log('✅ MongoDB connected');
 
   const server = http.createServer(app);
-  setupSocket(server); // 🔌 Enable Socket.IO
+  const io = setupSocket(server);     // 👈 Capture the returned io
+  app.set('io', io);
 
   server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
