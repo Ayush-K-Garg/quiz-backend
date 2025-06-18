@@ -17,8 +17,12 @@ const authenticateFirebaseUser = async (req, res, next) => {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     console.log('✅ Decoded user:', decodedToken);
 
-    req.user = decodedToken;
-
+    req.user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email || '',
+      name: decodedToken.name || '',
+      picture: decodedToken.picture || ''
+    };
     // ✅ Upsert user into MongoDB
     await User.findOneAndUpdate(
       { uid: decodedToken.uid },

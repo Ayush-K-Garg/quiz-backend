@@ -1,36 +1,38 @@
 const mongoose = require('mongoose');
 
 const matchRoomSchema = new mongoose.Schema({
-  // For custom room identification
   customRoomId: { type: String, unique: true, sparse: true },
 
-  // Game configuration
-  category: String,
-  difficulty: String,
-  amount: Number,
-  status: { type: String, default: 'waiting' }, // waiting | started | finished
+  category: { type: String, default: 'General Knowledge' },
+  difficulty: { type: String, default: 'easy' },
+  amount: { type: Number, default: 5 },
+  status: { type: String, default: 'waiting' },
 
-  // Capacity of the room (used in custom room mode)
-  capacity: { type: Number, default: 2 }, // Host + others
+  capacity: { type: Number, default: 2 },
 
-  // Store host's UID to control starting logic
-  hostUid: { type: String },
+  hostUid: { type: String, default: '' },
 
-  // Player data
   players: [
     {
-      uid: String,
-      username: String,
-      photoUrl: String,
+      uid: { type: String, required: true },
+      username: { type: String, default: 'Unknown' },
+      photoUrl: { type: String, default: '' },
       score: { type: Number, default: 0 },
-      answers: [String],
+      answers: [
+        {
+          index: Number,
+          answer: String,
+        },
+      ],
     },
   ],
 
-  // Pre-fetched questions for the room
-  questions: Array,
+  questions: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: [],
+  },
 
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
 });
 
 module.exports = mongoose.model('MatchRoom', matchRoomSchema);
