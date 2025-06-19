@@ -1,3 +1,5 @@
+require('dotenv').config(); // ✅ Load .env before anything else
+
 const mongoose = require('mongoose');
 const http = require('http');
 const app = require('./app');
@@ -5,8 +7,6 @@ const { setupSocket } = require('./socket');
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/quiz_app';
-
-
 
 mongoose.set('bufferCommands', false);
 mongoose.set('strictQuery', true);
@@ -19,7 +19,7 @@ mongoose.connect(MONGO_URI, {
   console.log('✅ MongoDB connected');
 
   const server = http.createServer(app);
-  const io = setupSocket(server);     // 👈 Capture the returned io
+  const io = setupSocket(server);
   app.set('io', io);
 
   server.listen(PORT, () => {
